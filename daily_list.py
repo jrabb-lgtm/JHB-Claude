@@ -3576,9 +3576,12 @@ async def main():
         body_lines += ["", "─" * 60, qa_email_body]
     body_lines.append(f"\nhttps://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/edit")
 
-    # Append full run log for debugging
+    # Append run log for debugging (truncated to last 50k chars to stay within email limits)
     run_log = _log_stream.getvalue()
     if run_log:
+        MAX_LOG = 50_000
+        if len(run_log) > MAX_LOG:
+            run_log = f"[...truncated, showing last {MAX_LOG} chars...]\n" + run_log[-MAX_LOG:]
         body_lines += [
             "",
             "─" * 60,
