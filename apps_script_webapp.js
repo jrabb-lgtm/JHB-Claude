@@ -158,6 +158,27 @@ function handleCreateTab(ss, payload) {
     sheet.autoResizeColumn(c);
   }
 
+  // Move any previous dated tabs (MM/DD/YYYY) to right after the "Skipped" tab.
+  // This keeps the new tab at position 0 and archives old lists out of the way.
+  var DATED_RE = /^\d{2}\/\d{2}\/\d{4}$/;
+  var allSheets = ss.getSheets();
+  var skippedIdx = -1;
+  for (var i = 0; i < allSheets.length; i++) {
+    if (allSheets[i].getName() === "Skipped") { skippedIdx = i; break; }
+  }
+  if (skippedIdx >= 0) {
+    // Collect old dated tabs (everything except the one we just created)
+    var oldDated = allSheets.filter(function(s) {
+      return DATED_RE.test(s.getName()) && s.getName() !== tabName;
+    });
+    // Move each old dated tab to just after "Skipped" (skippedIdx + 1, 1-based = skippedIdx + 2)
+    // We move them in reverse order so they stack in their original relative order.
+    oldDated.reverse().forEach(function(s) {
+      ss.moveActiveSheet && ss.setActiveSheet(s);
+      ss.moveSheet(s, skippedIdx + 2);
+    });
+  }
+
   SpreadsheetApp.flush();
   return jsonResponse({ status: "ok", message: "Created tab: " + tabName });
 }

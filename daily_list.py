@@ -3280,7 +3280,7 @@ def run_qa_pass(
 ):
     """
     Review today's rows for quality issues, call Claude Sonnet for analysis,
-    post a QA tab to the sheet, and return (issue_count, qa_email_body).
+    and return (issue_count, qa_email_body). Results go in the email only — no sheet tab.
     """
     log.info("=" * 60)
     log.info("QA pass starting...")
@@ -3362,15 +3362,7 @@ Return ONLY the JSON array, no markdown fences."""
     # ── 3. Build a lookup from sheet_row → analysis ───────────────────────────
     analysis_by_row = {item["sheet_row"]: item for item in qa_analysis if isinstance(item, dict)}
 
-    # ── 4. Write QA tab to Google Sheet ──────────────────────────────────────
-    qa_tab = f"QA {pull_str}"
-    qa_sheet_rows = []
-    qa_headers = [
-        "Sheet Row", "Row Type", "Name / Owner", "Address",
-        "Case / ID", "Issues Found", "Root Cause", "Fix Type", "Suggested Action",
-    ]
-    qa_sheet_rows.append(qa_headers)
-
+    # ── 4. Categorize rows for email digest (no sheet tab written) ───────────
     needs_manual: list[dict] = []
     needs_code_fix: list[dict] = []
 
@@ -3378,25 +3370,10 @@ Return ONLY the JSON array, no markdown fences."""
         sr  = p["sheet_row"]
         ana = analysis_by_row.get(sr, {})
         fix_type = ana.get("fix_type", "unknown")
-        qa_sheet_rows.append([
-            sr,
-            p["row_type"],
-            p["name"],
-            p["address"],
-            p["case_or_id"],
-            "; ".join(p["issues"]),
-            ana.get("root_cause", ""),
-            fix_type,
-            ana.get("suggested_action", ""),
-        ])
         if fix_type == "needs_manual":
             needs_manual.append({**p, **ana})
         elif fix_type == "needs_code_fix":
             needs_code_fix.append({**p, **ana})
-
-    create_sheet_tab(qa_tab)
-    write_rows_to_sheet(qa_tab, qa_sheet_rows)
-    log.info(f"QA: wrote {len(qa_sheet_rows)-1} issue rows to tab '{qa_tab}'")
 
     # ── 5. Build email digest ─────────────────────────────────────────────────
     auto_fix_count   = sum(1 for p in problem_rows
