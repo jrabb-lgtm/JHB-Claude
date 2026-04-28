@@ -28,6 +28,13 @@ import anthropic
 import base64
 import csv
 import io
+import subprocess
+import os
+
+# Auto-sync from GitHub before running
+_repo = os.path.expanduser("~/JHB-Claude")
+if os.path.isdir(os.path.join(_repo, ".git")):
+    subprocess.run(["git", "-C", _repo, "pull", "origin", "main", "--quiet"], check=False)
 import json
 import logging
 import os

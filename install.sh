@@ -1,14 +1,20 @@
 #!/bin/bash
-# Copies the fixed daily_list.py to ~/daily-list/
-# Also updates the rdl alias to point to this workspace so future fixes are automatic
-
-WORKSPACE="/Users/jordanrabb/Documents/Claude/Projects/Python Daily List"
-
-# Copy fixed script
-cp "$WORKSPACE/daily_list.py" ~/daily-list/daily_list.py && echo "✓ Fixed daily_list.py copied to ~/daily-list/" || echo "✗ Copy failed"
-
-# Update rdl alias to always use workspace version (picks up future fixes automatically)
-sed -i '' '/alias rdl=/d' ~/.zshrc
-echo "alias rdl='python3 \"$WORKSPACE/daily_list.py\"'" >> ~/.zshrc
-source ~/.zshrc 2>/dev/null || true
-echo "✓ rdl alias updated"
+PLIST="$HOME/Library/LaunchAgents/com.joehomebuyer.claude-sync.plist"
+SCRIPT="$HOME/Documents/Claude/Projects/Python Daily List/sync.sh"
+mkdir -p "$HOME/Library/LaunchAgents"
+cat > "$PLIST" << PEOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.joehomebuyer.claude-sync</string>
+  <key>ProgramArguments</key>
+  <array><string>/bin/bash</string><string>'${SCRIPT}'</string></array>
+  <key>StartInterval</key><integer>300</integer>
+  <key>RunAtLoad</key><true/>
+  <key>StandardOutPath</key><string>'${HOME}/Library/Logs/jhb-sync.log'</string>
+  <key>StandardErrorPath</key><string>'${HOME}/Library/Logs/jhb-sync.log'</string>
+</dict></plist>
+PEOF
+launchctl unload "$PLIST" 2>/dev/null || true
+launchctl load "$PLIST"
+echo "LaunchAgent installed - syncing every 5 minutes"
