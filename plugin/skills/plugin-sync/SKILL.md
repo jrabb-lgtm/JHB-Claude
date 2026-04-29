@@ -10,88 +10,73 @@ description: |
 
 # Plugin Sync
 
-After any skill is created or updated, rebuild the joe-homebuyer plugin and save it to Google Drive so the latest version is always available for the team.
+After any skill is created or updated, build the plugin and push it to GitHub. GitHub is the single source of truth.
 
-## What to do
-
-Run these steps immediately after finishing any skill work:
-
-### Step 1: Build a fresh plugin directory in /tmp
+## Step 1: Build a fresh plugin directory in /tmp
 
 ```bash
 rm -rf /tmp/joe-homebuyer-build
 mkdir -p /tmp/joe-homebuyer-build/.claude-plugin
 mkdir -p /tmp/joe-homebuyer-build/skills
-```
 
-### Step 2: Write the plugin manifest
-
-```bash
 cat > /tmp/joe-homebuyer-build/.claude-plugin/plugin.json << 'EOF'
 {
   "name": "joe-homebuyer",
   "version": "0.1.0",
-  "description": "Joe Homebuyer workflows — probate case research, Google Sheet updates, and more.",
-  "author": {
-    "name": "Joe Homebuyer"
-  }
+  "description": "Joe Homebuyer workflows — daily list, tax foreclosure research, Quo call reports.",
+  "author": { "name": "Joe Homebuyer" }
 }
 EOF
 ```
 
-### Step 3: Copy all current skills into the build
+## Step 2: Copy all current skills into the build
 
-**Source of truth is the remote plugin directory — do NOT pull from `/mnt/.claude/skills/`.** The remote plugin path looks like:
-```
-/sessions/.../mnt/.remote-plugins/plugin_01CFoyptHFVebWkN4oer2qZU/skills/
-```
+Source of truth is the installed remote plugin directory. Find it dynamically:
 
-Copy every skill folder from that directory into `/tmp/joe-homebuyer-build/skills/`:
 ```bash
-cp -r /sessions/.../mnt/.remote-plugins/plugin_01CFoyptHFVebWkN4oer2qZU/skills/* /tmp/joe-homebuyer-build/skills/
+PLUGIN_DIR=$(find /sessions/*/mnt/.remote-plugins/plugin_01CFoyptHFVebWkN4oer2qZU/skills -maxdepth 0 2>/dev/null | head -1)
+cp -r "$PLUGIN_DIR"/* /tmp/joe-homebuyer-build/skills/
 chmod -R u+w /tmp/joe-homebuyer-build
 ```
 
-Then apply any edits you made this session on top of those copies.
+Apply any edits made this session on top of those copies. If a new skill was created this session, copy it into `/tmp/joe-homebuyer-build/skills/` as well.
 
-If a brand-new skill was created this session (not yet in the remote plugin), copy it from wherever it was written (e.g. `/tmp/` or `/mnt/outputs/`) into `/tmp/joe-homebuyer-build/skills/` as well.
+**Never copy from `/mnt/.claude/skills/`** — those are system skills and don't belong here.
 
-**Never copy from `/mnt/.claude/skills/`** — those are system/shared skills (pptx, pdf, docx, etc.) and do not belong in the joe-homebuyer plugin.
-
-### Step 4: Package and save to Google Drive
-
-The session name in the path changes every session — never hardcode it. Use `find` to locate the mount dynamically:
+## Step 3: Package the plugin
 
 ```bash
-cd /tmp/joe-homebuyer-build && \
-zip -r /tmp/joe-homebuyer.plugin . -x "*.DS_Store"
+cd /tmp/joe-homebuyer-build && zip -r /tmp/joe-homebuyer.plugin . -x "*.DS_Store"
+```
 
-# Find Google Drive mount dynamically (session name changes every session)
+## Step 4: Stage to Google Drive (transfer mechanism only)
+
+```bash
 DRIVE_DIR=$(find /sessions/*/mnt/CloudStorage/ -maxdepth 3 -type d -name "Claude" 2>/dev/null | grep "GoogleDrive-jrabb" | head -1)
-
 if [ -n "$DRIVE_DIR" ]; then
-  cp /tmp/joe-homebuyer.plugin "$DRIVE_DIR/joe-homebuyer.plugin" && echo "Saved to Google Drive: $DRIVE_DIR"
+  cp /tmp/joe-homebuyer.plugin "$DRIVE_DIR/joe-homebuyer.plugin"
+  echo "Staged to Google Drive"
 else
-  # Fallback: try iCloud
-  ICLOUD_DIR=$(find /sessions/*/mnt/com~apple~CloudDocs/ -maxdepth 1 -type d -name "Claude" 2>/dev/null | head -1)
-  if [ -n "$ICLOUD_DIR" ]; then
-    cp /tmp/joe-homebuyer.plugin "$ICLOUD_DIR/joe-homebuyer.plugin" && echo "Saved to iCloud: $ICLOUD_DIR"
-  else
-    # Last resort: save to outputs so user can manually place it
-    cp /tmp/joe-homebuyer.plugin "/sessions/$(ls /sessions/ | head -1)/mnt/outputs/joe-homebuyer.plugin"
-    echo "WARNING: Google Drive and iCloud not accessible. Saved to outputs folder — please upload manually."
-  fi
+  echo "WARNING: Google Drive not found — cannot transfer to Mac for GitHub push."
 fi
 ```
 
-### Step 5: Confirm
+## Step 5: Push to GitHub via computer-use Terminal
 
-Tell the user where the plugin was saved (Google Drive, iCloud, or outputs). One line, no fanfare.
+Use computer-use to open Terminal on Jordan's Mac and run this as a single command:
+
+```bash
+REPO="$HOME/Documents/Claude/Projects/Python Daily List" && TOKEN=$(cat ~/.jhb_github_token) && GDRIVE="$HOME/Library/CloudStorage/GoogleDrive-jrabb@joehomebuyer.com/My Drive/Claude" && cp "$GDRIVE/joe-homebuyer.plugin" "$REPO/joe-homebuyer.plugin" && rm -rf /tmp/jhb-unzip && mkdir -p /tmp/jhb-unzip && cd /tmp/jhb-unzip && unzip -o "$REPO/joe-homebuyer.plugin" -d unpacked && rm -rf "$REPO/plugin" && cp -r /tmp/jhb-unzip/unpacked/. "$REPO/plugin/" && cd "$REPO" && git config user.email "jrabb@joehomebuyer.com" && git config user.name "Jordan Rabb" && git remote set-url origin "https://${TOKEN}@github.com/jrabb-lgtm/JHB-Claude.git" && git add plugin/ joe-homebuyer.plugin && { git diff --cached --quiet || git commit -m "Skill update $(date '+%Y-%m-%d %H:%M')"; } && git push origin main && echo "Pushed to GitHub"
+```
+
+Wait for "Pushed to GitHub" before confirming.
+
+## Step 6: Confirm
+
+Tell Jordan: "Pushed to GitHub." One line, no fanfare.
 
 ## Notes
-
-- The session name (e.g. `serene-youthful-shannon`) changes every session — always use `find` to locate the mount, never hardcode the session name
-- The Google Drive path pattern is: `.../mnt/CloudStorage/GoogleDrive-jrabb@joehomebuyer.com/My Drive/Claude/joe-homebuyer.plugin`
-- Direct file writes to Google Drive subdirectories fail due to FUSE limitations — only the top-level `Claude/` folder accepts writes
-- Always overwrite the existing file — do not version or rename it
-- Before deleting any row from the Google Sheet, always take a screenshot first to confirm the row actually exists — never assume data was written
+- Token lives at `~/.jhb_github_token` on Jordan's Mac — never hardcode it in this file
+- Google Drive is a staging area only — not a backup or destination
+- Repo path: `~/Documents/Claude/Projects/Python Daily List`
+- Never copy from `/mnt/.claude/skills/` — system skills don't belong in this plugin
