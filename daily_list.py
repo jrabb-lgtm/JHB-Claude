@@ -533,12 +533,16 @@ def extract_complaint_fields(client: anthropic.Anthropic, png_bytes: bytes, case
             "This is a Massachusetts Servicemembers Civil Relief Act complaint document.\n\n"
             "TASK: Extract the defendant's name from the party list at the top of the complaint "
             "(the person being sued — usually labeled 'Defendant' or listed after the 'v.').\n"
-            "Also extract:\n"
-            "  property_street — street address of the mortgaged property\n"
+            "Also extract the mortgaged property address:\n"
+            "  property_street — full street address of the mortgaged property, INCLUDING any unit, "
+            "apartment, condo, or suite number (e.g. '40 Main Street, Unit 40C' not just '40 Main Street'). "
+            "The property address appears in the BODY of the complaint (e.g. 'premises known as' or "
+            "'property located at'), NOT in the party caption at the top-right. "
+            "Use the body description — it is more complete and includes unit numbers.\n"
             "  property_city   — city or town of the property\n"
             "  property_zip    — zip code if visible, else empty string\n\n"
             'Return ONLY valid JSON, e.g.: {"defendant_name": "John Smith", '
-            '"property_street": "123 Main St", "property_city": "Springfield", "property_zip": "01234"}'
+            '"property_street": "40 Main Street, Unit 40C", "property_city": "Rockport", "property_zip": "01966"}'
         )
     resp = client.messages.create(
         model="claude-haiku-4-5-20251001",
