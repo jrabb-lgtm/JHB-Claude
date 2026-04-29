@@ -1,25 +1,44 @@
 # Joe Homebuyer — Claude Memory
 
-## Who I Am
-I'm the Claude agent for Joe Homebuyer. I run on two Macs (Mac Mini at the office + Jordan's personal machine) and stay in sync via GitHub.
+## Machines & Sync Rules
 
-## The Core Jobs
-1. **Daily probate list** — runs every weekday at 4am via scheduled task
-2. **Nightly Quo call report** — runs every night at 8pm, emails Jordan a performance summary of all agents
+- **Jordan's MacBook (this machine):** Source of truth. All code changes, skill updates, and config changes originate here and get pushed to GitHub.
+- **Seth (Mac Mini):** Pulls from GitHub. Runs the daily list and scheduled tasks. May ONLY write to `seth-memory/` — never any other file, never `git push` directly.
+
+**Flow:** MacBook → GitHub → Seth. One direction only (except seth-memory/).
+
+**Token:** Stored at `~/.jhb_github_token`. Never hardcode it in any file that goes to GitHub.
+
+---
+
+## Active Projects
+
+1. **Daily List** — most critical. Python script (`daily_list.py`) scrapes all MA probate counties daily at 4am. All sub-workflows (probate, pre-foreclosure, tax-lien, foreclosure-auction) are internal to this script. The `daily-list` skill triggers it.
+
+2. **Tax Foreclosure Research** — researches open MA Land Court tax lien cases on MassCourts.org and flags HOT / WARM / WATCH leads in the Google Sheet.
+
+3. **Quo Integration** — nightly call report emailed to Jordan at 8pm. Two accounts: main acquisition team (this machine, 26 inboxes) and cold callers (Seth — Kelsey, Rebecca, Rick).
+
+---
+
+## Seth Memory Review
+
+Seth writes learnings to `seth-memory/` in the repo. The nightly sync commits and pushes them automatically.
+
+When I see new seth-memory entries:
+- **No conflicts with Jordan's laptop setup** → apply the changes directly.
+- **Conflicts exist** → surface them to Jordan and wait for a decision before applying.
 
 ---
 
 ## GitHub Sync
 - **Repo:** https://github.com/jrabb-lgtm/JHB-Claude
-- **Local path:** ~/Documents/Claude/Projects/Python Daily List
-- **Auto-sync:** Nightly via LaunchAgent (com.joehomebuyer.claude-sync)
+- **Local path (MacBook):** ~/Documents/Claude/Projects/Python Daily List
+- **Auto-sync:** Every 5 minutes via LaunchAgent (com.joehomebuyer.claude-sync)
 
-⚠️ **HARD RULE — Mac Mini (Seth) must NEVER push to GitHub** except for one exception: the `seth-memory/` folder. Seth may write memory files to `~/Documents/Claude/Projects/Python Daily List/seth-memory/` and the nightly sync will commit and push them automatically. Seth must NEVER run `git push`, `git commit`, or edit any files outside of `seth-memory/`. All code changes (`daily_list.py`, `apps_script_webapp.js`, `CLAUDE.md`, `sync.sh`, etc.) originate on Jordan's personal machine only.
+⚠️ **HARD RULE — Seth must NEVER push to GitHub** except for `seth-memory/`. Seth must NEVER run `git push`, `git commit`, or edit any files outside of `seth-memory/`. All code changes originate on Jordan's MacBook only.
 
-**Seth's persistent memory lives at:** `~/Documents/Claude/Projects/Python Daily List/seth-memory/`
-- Write memory files here using the same format as the Cowork memory system (frontmatter + body)
-- Keep `seth-memory/MEMORY.md` updated as an index
-- The nightly sync commits and pushes this folder to GitHub automatically so learnings survive across sessions
+**Seth's persistent memory:** `~/Documents/Claude/Projects/Python Daily List/seth-memory/`
 
 ---
 
@@ -28,7 +47,6 @@ I'm the Claude agent for Joe Homebuyer. I run on two Macs (Mac Mini at the offic
 - **Run command:** `rdl` (alias for `python3 ~/daily-list/daily_list.py`)
 - **Google Sheet:** https://docs.google.com/spreadsheets/d/1JS--FPwrBR0Qt3GalZe-_xAaLT0Hgr_3P_sVttUdGMw/edit
 - **Apps Script URL:** https://script.google.com/macros/s/AKfycbx2nAPJS1yXZ1EaWge49JHkk80XQdtpFk9-ybNoPK0rqKPghCRZMCDgnQFoUCRShBXkPQ/exec
-- **Apps Script project:** "Claude Daily List" on script.google.com
 - **Notification email:** jrabb@joehomebuyer.com
 - **Schedule:** Weekdays at 4:09am (NopeCHA handles reCAPTCHA automatically — never stop to ask Jordan to solve it)
 
@@ -65,14 +83,12 @@ Connected via Quo MCP connector. 26 inboxes across the acquisition team.
 
 **Report color coding:** 🟢 = 30+ dials, 🟡 = 15–29, 🔴 = under 15
 
-### Account 2 (Cold Callers — Mac Mini)
-Separate Quo workspace. Connect the Quo MCP on the Mac Mini using the cold caller account credentials.
+### Account 2 (Cold Callers — Seth)
+Separate Quo workspace. Connect the Quo MCP on Seth using the cold caller account credentials.
 
 **Team:** Kelsey Castillo, Rebecca Bautista, Rick Pimentel
 **Inboxes:** Ky 1 (+17819726864), Ky 2 (+17814626741), Ky 3 (+17816946395), Ky 4 (+19786984676)
-**Scheduled task to set up:** Same nightly-agent-call-report task at 8:00 PM — same format, same recipient (jrabb@joehomebuyer.com), subject: "📞 Nightly Call Report — Cold Callers — [Date]"
-
-**To set up on Mac Mini:** Connect Quo (cold caller account) → say "set up the nightly call report" and follow the same steps used on the main machine.
+**Scheduled task:** Same nightly-agent-call-report at 8:00 PM — subject: "📞 Nightly Call Report — Cold Callers — [Date]"
 
 ---
 
@@ -87,6 +103,6 @@ Separate Quo workspace. Connect the Quo MCP on the Mac Mini using the cold calle
 ## Jordan's Preferences
 - Doesn't want long explanations — just do the thing
 - Comfortable with Terminal for running commands
-- Uses Mac Mini as primary work machine
+- MacBook is primary dev machine; Seth is the always-on worker
 - iCloud Desktop sync is enabled (occasionally causes file deletion issues)
-- Two Quo workspaces: main account (26 inboxes, acquisition team) + cold caller account (Mac Mini)
+- Two Quo workspaces: main account (26 inboxes, acquisition team) + cold caller account (Seth)
