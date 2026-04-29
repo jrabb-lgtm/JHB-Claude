@@ -2045,28 +2045,33 @@ async def run_pre_foreclosure(
                     r"(?:Property\s+Address|Property)[:\s]+([0-9]+\s+[A-Za-z0-9\s]+?),\s*([A-Za-z ]+),?\s*MA",
                     case_text, re.IGNORECASE,
                 )
-            if addr_match:
+            # Always read the complaint PDF first — it contains the complete address
+            # including unit/condo numbers that the MassCourts case text page omits.
+            # Fall back to the case-text regex only if the PDF is unavailable or fails.
+            pdf_url = await get_image_url(page)
+            prop_street, prop_city, prop_zip = "", "", ""
+            pdf_fields = {}
+            if pdf_url:
+                pdf_bytes = await fetch_pdf_bytes(page, pdf_url)
+                if pdf_bytes:
+                    try:
+                        png       = pdf_bytes_to_png(pdf_bytes, 0)
+                        prompt_t  = "tax_lien" if is_muni_tl else "servicemembers"
+                        pdf_fields = extract_complaint_fields(client, png, prompt_t)
+                        prop_street = pdf_fields.get("property_street", "")
+                        prop_city   = pdf_fields.get("property_city", "")
+                        prop_zip    = pdf_fields.get("property_zip", "")
+                        if prop_street:
+                            log.debug(f"  {case_num}: address from PDF: {prop_street}, {prop_city}")
+                    except Exception as e:
+                        log.warning(f"  {case_num} complaint extraction error: {e}")
+
+            # Fallback: PDF unavailable or Haiku returned no address — use case text regex
+            if not prop_street and addr_match:
                 prop_street = addr_match.group(1).strip()
                 prop_city   = addr_match.group(2).strip()
                 prop_zip    = ""
-                pdf_fields  = {}
-            else:
-                # Fall back to complaint PDF — use tax_lien prompt for municipality cases
-                pdf_url = await get_image_url(page)
-                prop_street, prop_city, prop_zip = "", "", ""
-                pdf_fields = {}
-                if pdf_url:
-                    pdf_bytes = await fetch_pdf_bytes(page, pdf_url)
-                    if pdf_bytes:
-                        try:
-                            png       = pdf_bytes_to_png(pdf_bytes, 0)
-                            prompt_t  = "tax_lien" if is_muni_tl else "servicemembers"
-                            pdf_fields = extract_complaint_fields(client, png, prompt_t)
-                            prop_street = pdf_fields.get("property_street", "")
-                            prop_city   = pdf_fields.get("property_city", "")
-                            prop_zip    = pdf_fields.get("property_zip", "")
-                        except Exception as e:
-                            log.warning(f"  {case_num} complaint extraction error: {e}")
+                log.debug(f"  {case_num}: address from case text regex: {prop_street}, {prop_city}")
 
             if not prop_street:
                 log.warning(f"  {case_num}: No property address — skipping")
