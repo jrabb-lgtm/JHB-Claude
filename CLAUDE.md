@@ -106,3 +106,15 @@ Separate Quo workspace. Connect the Quo MCP on Seth using the cold caller accoun
 - MacBook is primary dev machine; Seth is the always-on worker
 - iCloud Desktop sync is enabled (occasionally causes file deletion issues)
 - Two Quo workspaces: main account (26 inboxes, acquisition team) + cold caller account (Seth)
+
+## Plugin Sync — Save Destinations
+
+When any skill is created or updated, plugin-sync runs automatically and pushes to GitHub only.
+
+- **Nothing goes to Google Drive** — Google Drive is no longer used for plugin storage
+- **GitHub repo:** `jrabb-lgtm/JHB-Claude`
+- **Token:** stored at `~/.jhb_github_token` on Jordan's Mac
+- **What gets pushed:** the full `joe-homebuyer.plugin` file (all skills bundled)
+- **When:** after every skill create/edit, automatically — do not wait to be asked
+
+Seth pulls from GitHub. Jordan's Mac is the source of truth.
