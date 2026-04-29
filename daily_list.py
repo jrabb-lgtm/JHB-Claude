@@ -143,12 +143,22 @@ def fmt_date(d: date) -> str:
     return d.strftime("%m/%d/%Y")
 
 def fmt_zip(z) -> str:
-    """Zero-pad Massachusetts zip codes that arrive without a leading zero.
-    ArcGIS ZIP / OWN_ZIP fields return integers (e.g. 2301 not 02301).
-    AI extraction sometimes does the same. Empty strings pass through unchanged.
+    """Return a clean 5-digit ZIP code string.
+    - Strips ZIP+4 suffixes: '01001-2743' → '01001', '01001 2743' → '01001'
+    - Strips unseparated ZIP+4 (9-digit): '010012743' → '01001'
+    - Zero-pads short MA zips that arrive as integers: 2301 → '02301'
+    - Non-digit values (except after the above cleanup) pass through unchanged.
+    - Empty/None → empty string.
     """
     s = str(z or "").strip()
-    return s.zfill(5) if s and s.isdigit() else s
+    if not s:
+        return s
+    # Strip ZIP+4 suffix separated by hyphen or space
+    s = re.split(r"[-\s]", s)[0]
+    if s.isdigit():
+        # Unseparated ZIP+4: take first 5 digits, then zero-pad to 5
+        return s[:5].zfill(5)
+    return s
 
 def fmt_phone(p) -> str:
     """Normalize a phone number to xxx-xxx-xxxx format.
@@ -351,10 +361,26 @@ def arcgis_by_address(street: str, city: str = None, zip_code: str = None) -> Op
                 if hit:
                     return hit
 
-    # Step 7: full address with no geography filter — last resort
+    # Step 7: full address with no geography filter — last resort.
+    # Handles village names not in ArcGIS CITY field (e.g. "Marstons Mills" → CITY=BARNSTABLE).
+    # Guard: if the returned CITY shares no words with the input city AND the input city
+    # is multi-word, reject the hit — it's more likely a false positive (different town,
+    # same street number) than a legitimate village→town match.
     if zip5 or city_upper:
         hit = _prefer_zip(_q(f"UPPER(SITE_ADDR) LIKE '{street}%'"))
         if hit:
+            if city_upper:
+                hit_city   = str(hit.get("CITY") or "").upper().strip()
+                city_words = set(city_upper.split())
+                hit_words  = set(hit_city.split()) if hit_city else set()
+                # Reject if: both cities are known, they share no words, AND the input city
+                # is multi-word (single-word cities are more likely to be village aliases).
+                if hit_city and not (city_words & hit_words) and len(city_words) > 1:
+                    log.warning(
+                        f"ArcGIS step-7 city mismatch — input={city_upper!r} "
+                        f"returned={hit_city!r} — rejecting to avoid wrong address"
+                    )
+                    return None
             return hit
 
     return None
@@ -1290,6 +1316,12 @@ def build_probate_row(
         if not prop_zip:
             prop_zip = str(arcgis.get("ZIP") or "")
 
+    # Fallback 3: we have a street address but the PDF never included a zip code
+    # (venue_property_address rarely has one; decedent_zip is often missing too).
+    # Use ArcGIS ZIP so the Lead Zip column is populated instead of left blank.
+    if not prop_zip and arcgis:
+        prop_zip = str(arcgis.get("ZIP") or "")
+
     return [
         pull_date,           # A  Pull Date
         file_date,           # B  File Date
@@ -2049,6 +2081,14 @@ async def run_pre_foreclosure(
             if not arc:
                 log.warning(f"  {case_num}: No ArcGIS match for {prop_street}, {prop_city} — including anyway")
 
+            # If ArcGIS matched by owner name but ZIP came back null, retry by address
+            # (owner-name records sometimes lack ZIP; address query is more reliable)
+            if arc and not arc.get("ZIP") and prop_street:
+                addr_arc = arcgis_by_address(prop_street, prop_city)
+                if addr_arc and addr_arc.get("ZIP"):
+                    arc["ZIP"] = addr_arc["ZIP"]
+                    log.debug(f"  {case_num}: ZIP backfilled from address lookup: {arc['ZIP']}")
+
             owner1 = arc.get("OWNER1", "") if arc else ""
 
             if is_muni_tl:
@@ -2197,6 +2237,13 @@ async def run_tax_lien(
                 log.warning(f"  {case_num}: No ArcGIS match — including anyway")
                 # Tax lien defendants ARE property owners (the municipality is collecting
                 # delinquent taxes from them). Include the lead with empty mailing fields.
+
+            # If owner-name lookup was used and ZIP is null, retry by address
+            if arc and not arc.get("ZIP") and prop_street:
+                addr_arc = arcgis_by_address(prop_street, prop_city)
+                if addr_arc and addr_arc.get("ZIP"):
+                    arc["ZIP"] = addr_arc["ZIP"]
+                    log.debug(f"  {case_num}: ZIP backfilled from address lookup: {arc['ZIP']}")
 
             owner1 = arc.get("OWNER1", assessed_to) if arc else assessed_to
             # assessed_to is in natural order (from the document); owner1 is LAST FIRST (ArcGIS)
@@ -2754,6 +2801,7 @@ async def _fc_process_notice(page: Page, btn_id: str, pull_str: str, seen: set) 
             return a ? a.href : null;
         })()
     """)
+    pdf_text_only = ""   # keep a clean copy of just the PDF text for targeted parsing
     if pdf_link:
         try:
             log.debug(f"  Foreclosure: downloading notice PDF: {pdf_link}")
@@ -2761,12 +2809,12 @@ async def _fc_process_notice(page: Page, btn_id: str, pull_str: str, seen: set) 
             if pdf_resp.ok:
                 pdf_bytes = await pdf_resp.body()
                 pdf_doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-                pdf_text = "\n".join(p.get_text() for p in pdf_doc)
+                pdf_text_only = "\n".join(p.get_text() for p in pdf_doc)
                 pdf_doc.close()
-                if pdf_text.strip():
+                if pdf_text_only.strip():
                     # Augment — the page text has metadata, PDF has the full legal notice
-                    notice_text = notice_text + "\n\n" + pdf_text
-                    log.info(f"  Foreclosure: augmented notice with PDF text ({len(pdf_text)} chars)")
+                    notice_text = notice_text + "\n\n" + pdf_text_only
+                    log.info(f"  Foreclosure: augmented notice with PDF text ({len(pdf_text_only)} chars)")
         except Exception as _pdf_err:
             log.warning(f"  Foreclosure: PDF download/extract failed: {_pdf_err}")
 
@@ -2803,6 +2851,7 @@ async def _fc_process_notice(page: Page, btn_id: str, pull_str: str, seen: set) 
         owner_name = ""
 
     # Parse auction date — try multiple patterns
+    # Strategy: try PDF-only text first (no page header boilerplate), then full combined text.
     auction_date = ""
     _MONTHS = r"(?:January|February|March|April|May|June|July|August|September|October|November|December)"
     _DATE   = rf"({_MONTHS}\s+\d{{1,2}},?\s+\d{{4}}(?:,?\s+at\s+\d+:\d+\s*[APM]+)?)"
@@ -2823,20 +2872,38 @@ async def _fc_process_notice(page: Page, btn_id: str, pull_str: str, seen: set) 
         (rf"to be sold (?:at|by) public auction on\s+{_DATE}", lambda m: m.group(1).strip()),
         # "held at public auction on DATE"
         (rf"held (?:at|by) public auction on\s+{_DATE}", lambda m: m.group(1).strip()),
-        # Generic: month-date anywhere within ~120 chars after "auction" (crosses sentence boundaries)
-        (rf"auction[\s\S]{{0,120}}?(\b{_MONTHS}\s+\d{{1,2}},?\s+\d{{4}})", lambda m: m.group(1).strip()),
+        # Generic: month-date anywhere within ~400 chars after "auction" (wider window for verbose notices)
+        (rf"auction[\s\S]{{0,400}}?(\b{_MONTHS}\s+\d{{1,2}},?\s+\d{{4}})", lambda m: m.group(1).strip()),
     ]
-    for pat, extractor in auction_patterns:
-        m = re.search(pat, notice_text, re.IGNORECASE)
-        if m:
-            try:
-                auction_date = extractor(m)
-                break
-            except Exception:
-                continue
+    # Try PDF-only text first (no website nav boilerplate), then fall back to full combined text
+    for search_text in ([pdf_text_only, notice_text] if pdf_text_only else [notice_text]):
+        for pat, extractor in auction_patterns:
+            m = re.search(pat, search_text, re.IGNORECASE)
+            if m:
+                try:
+                    auction_date = extractor(m)
+                    break
+                except Exception:
+                    continue
+        if auction_date:
+            break
+    # Last resort: find any bare month-day-year date in the PDF text (or full text) that looks like a future auction
     if not auction_date:
+        _bare_date_pat = rf"\b({_MONTHS}\s+\d{{1,2}},?\s+\d{{4}})\b"
+        for search_text in ([pdf_text_only, notice_text] if pdf_text_only else [notice_text]):
+            all_dates = re.findall(_bare_date_pat, search_text, re.IGNORECASE)
+            if all_dates:
+                # Use the first date found — in a foreclosure notice the auction date
+                # typically appears early (title area or first paragraph)
+                auction_date = all_dates[0].strip()
+                log.info(f"  Foreclosure: auction date via last-resort bare scan: {auction_date!r}")
+                break
+    if not auction_date:
+        # Log both snippet (first 400 chars) and tail of PDF text to help debug
         snippet = notice_text[:400].replace("\n", " ")
-        log.warning(f"  Foreclosure: could not parse auction date from notice — snippet: {snippet!r}")
+        pdf_snippet = (pdf_text_only[:400] if pdf_text_only else "(no PDF)").replace("\n", " ")
+        log.warning(f"  Foreclosure: could not parse auction date — page snippet: {snippet!r}")
+        log.warning(f"  Foreclosure: PDF snippet: {pdf_snippet!r}")
 
     # Parse property address — try multiple patterns
     # County suffix helper: optionally consume "Middlesex County," etc. between city and state.
