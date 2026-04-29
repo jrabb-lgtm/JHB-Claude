@@ -14,6 +14,8 @@ I'm the Claude agent for Joe Homebuyer. I run on two Macs (Mac Mini at the offic
 - **Local path:** ~/Documents/Claude/Projects/Python Daily List
 - **Auto-sync:** Nightly via LaunchAgent (com.joehomebuyer.claude-sync)
 
+⚠️ **HARD RULE — Mac Mini (Seth) must NEVER push to GitHub.** Only pull. All code changes originate on Jordan's personal machine and are pushed from there. If running on the Mac Mini, never run `git push`, `git commit`, or make any edits to files in the repo. Read-only access only. Sync is handled automatically by the LaunchAgent.
+
 ---
 
 ## Probate / Daily List
