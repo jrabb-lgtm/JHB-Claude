@@ -1,0 +1,14 @@
+{
+  "name": "joe-homebuyer",
+  "version": "0.1.0",
+  "description": "Joe Homebuyer workflows — probate case research, Google Sheet updates, and more.",
+  "author": {
+    "name": "Joe Homebuyer"
+  },
+  "mcpServers": {
+    "github": {
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp/"
+    }
+  }
+}
