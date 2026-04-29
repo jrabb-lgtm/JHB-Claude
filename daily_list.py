@@ -3553,6 +3553,19 @@ async def main():
         body_lines += ["", "─" * 60, qa_email_body]
     body_lines.append(f"\nhttps://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/edit")
 
+    # Append any new Seth memory written today
+    seth_memory_dir = Path.home() / "Documents/Claude/Projects/Python Daily List/seth-memory"
+    if seth_memory_dir.exists():
+        today_str = date.today().strftime("%Y-%m-%d")
+        new_memory_files = [
+            f for f in seth_memory_dir.glob("*.md")
+            if f.name != "MEMORY.md" and date.fromtimestamp(f.stat().st_mtime).strftime("%Y-%m-%d") == today_str
+        ]
+        if new_memory_files:
+            body_lines += ["", "─" * 60, "📝 SETH MEMORY UPDATES TODAY:"]
+            for mf in sorted(new_memory_files):
+                body_lines += [f"\n— {mf.name} —", mf.read_text().strip()]
+
     # Append run log for debugging (truncated to last 50k chars to stay within email limits)
     run_log = _log_stream.getvalue()
     if run_log:
