@@ -16,11 +16,24 @@ if [ ! -f "$TOKEN_FILE" ]; then
 fi
 TOKEN=$(cat "$TOKEN_FILE")
 
-# Pull latest from GitHub
+# Push any memory Seth has written to seth-memory/
 cd "$REPO_DIR" || { echo "ERROR: Repo dir not found" >> "$LOG"; exit 1; }
 git remote set-url origin "https://${TOKEN}@github.com/jrabb-lgtm/JHB-Claude.git"
-git pull origin main >> "$LOG" 2>&1
+git add seth-memory/ >> "$LOG" 2>&1
+if ! git diff --cached --quiet; then
+    git commit -m "Seth memory sync $(date '+%Y-%m-%d')" >> "$LOG" 2>&1
+    echo "✓ Seth memory committed" >> "$LOG"
+else
+    echo "  (no new Seth memory to commit)" >> "$LOG"
+fi
+
+# Pull latest from GitHub (rebase keeps Seth's memory commit on top)
+git pull --rebase origin main >> "$LOG" 2>&1
 echo "✓ Git pull complete" >> "$LOG"
+
+# Push Seth's memory commit if there was one
+git push origin main >> "$LOG" 2>&1
+echo "✓ Git push complete" >> "$LOG"
 
 # Update daily_list.py
 mkdir -p ~/daily-list
