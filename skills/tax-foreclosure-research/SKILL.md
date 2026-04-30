@@ -196,6 +196,8 @@ const link = Array.from(document.querySelectorAll('a')).find(a => a.textContent.
 window._caseNumTabUrl = link ? link.href : null;
 link ? 'got url' : 'not found';
 ```
+
+
 Navigate directly to that URL.
 
 **Step 3 — Search for a case:**
@@ -570,3 +572,37 @@ Jordan uses these shorthand notes — understand them before flagging:
 - **Read `document.body.innerText` in full** — the "All Information" tab on MassCourts already shows both party info AND docket in one page load
 - **Don't try to use the Docket tab link** — it requires a fresh session and usually returns an Internal Server Error if you navigate away first
 - **Start with Priority 1 cases** — they're few in number and Jordan already thought they were good; confirming them with docket data takes minutes and gives you quick wins to report
+
+---
+
+## Jordan's Investment Strategy — How to Flag Correctly
+
+**Goal:** ~$75k net profit per deal. There are two paths to get there:
+
+1. **Open probate** — work with 1-2 heirs to clear title through probate court, then sell or develop
+2. **Buy enough interest for partition** — acquire majority or controlling stake, then force a partition sale
+
+### What actually makes a case HOT (revised)
+
+**DO NOT flag HOT based on title complexity or fractured ownership alone.** Complexity is often a *disqualifier*, not an attraction. Flag HOT only when there is a clear, executable path to $75k.
+
+A case is truly HOT when:
+- **1-2 conversations** can get Jordan to majority or controlling position, OR
+- The property is **already rentable** (habitable or usable for parking) and even a small % stake is enough to operate it
+
+A case is WATCH/WARM (not HOT) when:
+- Ownership is fractured across many heirs requiring 5+ separate deals to reach majority
+- The property is a vacant lot with no revenue path and a complex multi-generational title chain
+- The only path requires opening multiple probates simultaneously
+
+### The rental exception
+
+If the property is already usable (habitable or available for parking), even a small ownership stake may be enough to operate it and generate income while title is sorted. In that case, the smallest % may be sufficient — complexity of title matters less.
+
+### Case example: 18 TL 001617 (Town of Westford v. Healy) — April 2026
+
+- 31 interest holders across 4 generations → too complex for a clean 1-2 party deal
+- Vacant lot at 66 Dunstable Road, Westford → no rental income path
+- Unjoined Hanleys hold 30% but aren't in the complaint → title defect adds complexity, not opportunity
+- **Re-flagged: WATCH** (was incorrectly flagged HOT for title complexity alone)
+- Lesson: Unjoined defendants + fractured ownership = research interest only, not necessarily an acquisition target
