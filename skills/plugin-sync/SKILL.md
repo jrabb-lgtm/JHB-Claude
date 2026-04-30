@@ -10,60 +10,86 @@ description: |
 
 # Plugin Sync
 
-After any skill is created or updated, sync all skills to GitHub.
+After any skill is created or updated, write the changes directly to the connected workspace folder. The cron job handles the GitHub push automatically — no computer control needed.
 
-## GitHub details
+---
 
-- **Repo:** `jrabb-lgtm/JHB-Claude`
-- **Token file:** `~/.jhb_github_token` (on Jordan's Mac)
-- **Git repo on Mac:** `~/jhb-repo` (actual clone — not a symlink, not ~/Documents)
+## Routing Rules — What Goes Where
 
-## What to do
+Before saving anything, pick the right file:
 
-### Step 1: Copy skills from the plugin to the workspace folder (bash sandbox)
+| Content type | Save to |
+|---|---|
+| Tax foreclosure research logic, flagging rules, case examples, investment strategy, HOT/WARM/WATCH criteria | `skills/tax-foreclosure-research/SKILL.md` |
+| Daily list counties, probate sheet updates, daily list Python script notes | `skills/daily-list/SKILL.md` |
+| How to sync skills or push to GitHub | `skills/plugin-sync/SKILL.md` |
+| Global facts about Jordan that apply across ALL sessions (email, company, global preferences) | `CLAUDE.md` in the workspace root |
 
-**Source of truth is the remote plugin directory — do NOT pull from `/mnt/.claude/skills/`.**
+**Never put skill-specific knowledge in CLAUDE.md.** That file is for truly global memory only.
 
-```bash
-REMOTE=$(find /sessions/ -type d -name "plugin_01CFoyptHFVebWkN4oer2qZU" 2>/dev/null | head -1)
-WORKSPACE=$(find /sessions/ -maxdepth 3 -type d -name "Python Daily List" 2>/dev/null | head -1)
+---
 
-for skill in daily-list plugin-sync tax-foreclosure-research; do
-  mkdir -p "$WORKSPACE/skills/$skill"
-  cat "$REMOTE/skills/$skill/SKILL.md" > "$WORKSPACE/skills/$skill/SKILL.md"
-done
-echo "Skills written to workspace"
+## Step 1 — Edit the skill file directly (no computer control)
+
+The `Python Daily List` folder is the stable home for all skills. When it is connected as a Cowork workspace, use the `Edit` or `Write` file tools directly:
+
+**Workspace skill paths:**
+```
+/Users/jordanrabb/Documents/Claude/Projects/Python Daily List/skills/daily-list/SKILL.md
+/Users/jordanrabb/Documents/Claude/Projects/Python Daily List/skills/plugin-sync/SKILL.md
+/Users/jordanrabb/Documents/Claude/Projects/Python Daily List/skills/tax-foreclosure-research/SKILL.md
 ```
 
-Apply any edits made this session on top. If a brand-new skill was created, add it to the loop.
+For a small addition (e.g. a new case example or strategy note), use `Edit` to append or insert.
+For a full rewrite, use `Write` to replace the whole file.
 
-**Never copy from `/mnt/.claude/skills/`** — those are system/shared skills and don't belong here.
+**If the Python Daily List folder is NOT connected this session**, ask Jordan:
+> "To save this directly, I need the Python Daily List folder connected. You can add it in Cowork by clicking the folder icon and selecting Documents → Claude → Projects → Python Daily List."
 
-### Step 2: Push to GitHub via Terminal (computer-use)
+Do NOT fall back to TextEdit or computer control — just ask Jordan to connect the folder.
 
-Use `mcp__computer-use__request_access` for Terminal, then run:
+---
+
+## Step 2 — GitHub push (automatic)
+
+The cron job `jhb-push-once.sh` runs every minute on Jordan's Mac. It copies from this folder to `~/jhb-repo` and pushes to `jrabb-lgtm/JHB-Claude` automatically.
+
+**No action needed.** Just wait ~60 seconds after saving.
+
+If an immediate push is needed, run this from the bash sandbox:
 
 ```bash
+ls "/sessions/optimistic-eloquent-heisenberg/mnt/Python Daily List/skills/"
+```
+
+If the mount is present (confirms the folder is connected), the cron will handle it. If you need to force it NOW, write a push script to outputs and double-click from Finder:
+
+```bash
+cat > /sessions/optimistic-eloquent-heisenberg/mnt/outputs/jhb_push.command << 'EOF'
+#!/bin/bash
 TOKEN=$(cat ~/.jhb_github_token)
 cd ~/jhb-repo
 git remote set-url origin "https://${TOKEN}@github.com/jrabb-lgtm/JHB-Claude.git"
-
-# Sync skills and CLAUDE.md from workspace into the repo
 cp -r ~/Documents/Claude/Projects/Python\ Daily\ List/skills/. skills/
-cp ~/Documents/Claude/Projects/Python\ Daily\ List/CLAUDE.md .
-
 git add -A
 git diff --cached --quiet && echo "Nothing new to push" || (git commit -m "Update skills - $(date '+%Y-%m-%d %H:%M')" && git push origin main && echo "Pushed!")
+EOF
+chmod +x /sessions/optimistic-eloquent-heisenberg/mnt/outputs/jhb_push.command
+echo "Script ready — open Finder → outputs folder → double-click jhb_push.command"
 ```
 
-### Step 3: Confirm
+---
 
-One line to the user: `Plugin pushed to GitHub (jrabb-lgtm/JHB-Claude).`
+## Step 3 — Confirm
+
+Tell Jordan: `Saved to [skill name]. GitHub will sync within a minute.`
+
+---
 
 ## Notes
 
-- Token lives at `~/.jhb_github_token` — never hardcode it or commit it
-- Always push from `~/jhb-repo` (not from ~/Documents) — avoids getcwd() errors in background processes
-- Terminal has Full Disk Access and can read from ~/Documents — this is why the cp works
-- Cron (`jhb-push-once.sh`) runs every minute as a backup retry — it does the same cp+push but only if there's something staged
-- Before deleting any row from the Google Sheet, always take a screenshot first to confirm the row actually exists — never assume data was written
+- The `Python Daily List` folder contains ALL skills — not just the daily list
+- The folder connection may need to be re-added each session (Cowork doesn't yet persist it automatically)
+- If the session mount path has changed (different session name), update the bash path above
+- Token lives at `~/.jhb_github_token` — never hardcode it
+- Always push from `~/jhb-repo`, not from ~/Documents — avoids getcwd() errors
